@@ -144,7 +144,7 @@ if (!function_exists('dol_loginfunction')) {
 		$main_authentication = $conf->file->main_authentication;
 
 		$session_name = session_name(); // Get current session name
-echo "<br />session name: " .$session_name
+echo "<br />session name: " .$session_name;
 		$dol_url_root = DOL_URL_ROOT;
 
 		// Title
