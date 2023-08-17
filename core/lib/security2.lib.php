@@ -172,7 +172,7 @@ echo "<br />session name: " .$session_name;
 		}
 		$conf_css = $themepath."?lang=".$langs->defaultlang;
 		*/
-
+echo "<br />" . $conf->modules_parts['tpl'];
 		// Select templates dir
 		if (!empty($conf->modules_parts['tpl'])) {	// Using this feature slow down application
 			$dirtpls = array_merge($conf->modules_parts['tpl'], array('/core/tpl/'));
