@@ -84,7 +84,7 @@ if (!$res) {
 	die("Include of main fails");
 }
 
-
+echo "aqui 1";
 require_once DOL_DOCUMENT_ROOT.'/core/class/html.formcompany.class.php';
 require_once DOL_DOCUMENT_ROOT.'/core/class/html.formfile.class.php';
 require_once DOL_DOCUMENT_ROOT.'/core/class/html.formprojet.class.php';

@@ -6,7 +6,7 @@
 // and explanations for all possibles parameters.
 //
 $dolibarr_main_url_root='https://lashormigas.com.mx';
-$dolibarr_main_document_root='/home/lashormigascom/public_html';
+$dolibarr_main_document_root='/home/lashormigascom/public_html/htdocs';
 $dolibarr_main_url_root_alt='/custom';
 $dolibarr_main_document_root_alt='/home/lashormigascom/public_html/custom';
 $dolibarr_main_data_root='/home/lashormigascom/public_html/documents';
