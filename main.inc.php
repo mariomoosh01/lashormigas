@@ -211,7 +211,7 @@ function analyseVarsForSqlAndScriptsInjection(&$var, $type)
 	}
 }
 
-
+echo "entrando a main inc php";
 // Check consistency of NOREQUIREXXX DEFINES
 if ((defined('NOREQUIREDB') || defined('NOREQUIRETRAN')) && !defined('NOREQUIREMENU')) {
 	print 'If define NOREQUIREDB or NOREQUIRETRAN are set, you must also set NOREQUIREMENU or not set them.';
@@ -272,7 +272,7 @@ if (!empty($_POST["DOL_AUTOSET_COOKIE"])) {
 	}
 }
 
-
+echo "user" . ini_get('session.save_handler');
 // Set the handler of session
 if (ini_get('session.save_handler') == 'user') {
 	require_once 'core/lib/phpsessionindb.lib.php';
@@ -316,6 +316,7 @@ if (!empty($conf->global->MAIN_ONLY_LOGIN_ALLOWED)) {
 	} elseif (session_id() && isset($_SESSION["dol_login"]) && $_SESSION["dol_login"] == $conf->global->MAIN_ONLY_LOGIN_ALLOWED) {
 		$ok = 1; // We let working if user is allowed admin
 	}
+	
 	if (!$ok) {
 		if (session_id() && isset($_SESSION["dol_login"]) && $_SESSION["dol_login"] != $conf->global->MAIN_ONLY_LOGIN_ALLOWED) {
 			print 'Sorry, your application is offline.'."\n";

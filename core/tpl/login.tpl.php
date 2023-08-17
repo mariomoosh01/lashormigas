@@ -32,7 +32,7 @@ if (empty($conf) || !is_object($conf)) {
 
 
 require_once DOL_DOCUMENT_ROOT.'/core/lib/functions2.lib.php';
-
+echo "cometela caca perro";
 header('Cache-Control: Public, must-revalidate');
 header("Content-type: text/html; charset=".$conf->file->character_set_client);
 
