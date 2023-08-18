@@ -170,12 +170,12 @@ class RemiseCheque extends CommonObject
 		$sql .= ") VALUES (";
 		$sql .= "'".$this->db->idate($now)."'";
 		$sql .= ", '".$this->db->idate($now)."'";
-		$sql .= ", ".$user->id;
+		$sql .= ", ".((int) $user->id);
 		$sql .= ", ".((int) $account_id);
 		$sql .= ", 0";
 		$sql .= ", 0";
 		$sql .= ", 0";
-		$sql .= ", ".$conf->entity;
+		$sql .= ", ".((int) $conf->entity);
 		$sql .= ", 0";
 		$sql .= ", ''";
 		$sql .= ")";
@@ -200,8 +200,9 @@ class RemiseCheque extends CommonObject
 				}
 			}
 
+			$lines = array();
+
 			if ($this->id > 0 && $this->errno == 0) {
-				$lines = array();
 				$sql = "SELECT b.rowid";
 				$sql .= " FROM ".MAIN_DB_PREFIX."bank as b";
 				$sql .= " WHERE b.fk_type = 'CHQ'";
@@ -260,7 +261,7 @@ class RemiseCheque extends CommonObject
 			$this->errno = $this->db->lasterrno();
 		}
 
-		if (!$this->errno && !empty($conf->global->MAIN_DISABLEDRAFTSTATUS)) {
+		if (!$this->errno && (getDolGlobalString('MAIN_DISABLEDRAFTSTATUS') || getDolGlobalString('MAIN_DISABLEDRAFTSTATUS_CHEQUE'))) {
 			$res = $this->validate($user);
 			//if ($res < 0) $error++;
 		}
@@ -305,7 +306,7 @@ class RemiseCheque extends CommonObject
 			if ($this->errno === 0) {
 				$sql = "UPDATE ".MAIN_DB_PREFIX."bank";
 				$sql .= " SET fk_bordereau = 0";
-				$sql .= " WHERE fk_bordereau = ".$this->id;
+				$sql .= " WHERE fk_bordereau = ".((int) $this->id);
 
 				$resql = $this->db->query($sql);
 				if (!$resql) {
@@ -615,6 +616,7 @@ class RemiseCheque extends CommonObject
 			// We save charset_output to restore it because write_file can change it if needed for
 			// output format that does not support UTF8.
 			$sav_charseSupprimert_output = $outputlangs->charset_output;
+
 			$result = $docmodel->write_file($this, $conf->bank->dir_output.'/checkdeposits', $this->ref, $outputlangs);
 			if ($result > 0) {
 				//$outputlangs->charset_output=$sav_charset_output;
@@ -647,7 +649,7 @@ class RemiseCheque extends CommonObject
 		$nb = 0;
 		$sql = "SELECT amount ";
 		$sql .= " FROM ".MAIN_DB_PREFIX."bank";
-		$sql .= " WHERE fk_bordereau = ".$this->id;
+		$sql .= " WHERE fk_bordereau = ".((int) $this->id);
 
 		$resql = $this->db->query($sql);
 		if ($resql) {
@@ -729,7 +731,7 @@ class RemiseCheque extends CommonObject
 		$bankline = new AccountLine($db);
 		$bankline->fetch($bank_id);
 
-		/* Conciliation is allowed because when check is returned, a new line is created onto bank transaction log.
+		/* Reconciliation is allowed because when check is returned, a new line is created onto bank transaction log.
 		if ($bankline->rappro)
 		{
 			$this->error='ActionRefusedLineAlreadyConciliated';
@@ -738,7 +740,7 @@ class RemiseCheque extends CommonObject
 
 		$this->db->begin();
 
-		// Not conciliated, we can delete it
+		// Not reconciled, we can delete it
 		//$bankline->delete($user);    // We delete
 
 		$bankaccount = $payment->fk_account;
@@ -1005,10 +1007,10 @@ class RemiseCheque extends CommonObject
 		if (empty($this->labelStatus) || empty($this->labelStatusShort)) {
 			global $langs;
 			$langs->load('compta');
-			$this->labelStatus[self::STATUS_DRAFT] = $langs->trans('ToValidate');
-			$this->labelStatus[self::STATUS_VALIDATED] = $langs->trans('Validated');
-			$this->labelStatusShort[self::STATUS_DRAFT] = $langs->trans('ToValidate');
-			$this->labelStatusShort[self::STATUS_VALIDATED] = $langs->trans('Validated');
+			$this->labelStatus[self::STATUS_DRAFT] = $langs->transnoentitiesnoconv('ToValidate');
+			$this->labelStatus[self::STATUS_VALIDATED] = $langs->transnoentitiesnoconv('Validated');
+			$this->labelStatusShort[self::STATUS_DRAFT] = $langs->transnoentitiesnoconv('ToValidate');
+			$this->labelStatusShort[self::STATUS_VALIDATED] = $langs->transnoentitiesnoconv('Validated');
 		}
 
 		$statusType = 'status'.$status;

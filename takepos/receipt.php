@@ -1,10 +1,10 @@
 <?php
 /* Copyright (C) 2007-2008 Jeremie Ollivier    <jeremie.o@laposte.net>
- * Copyright (C) 2011      Laurent Destailleur <eldy@users.sourceforge.net>
+ * Copyright (C) 2011-2023 Laurent Destailleur <eldy@users.sourceforge.net>
  * Copyright (C) 2012      Marcos García       <marcosgdf@gmail.com>
  * Copyright (C) 2018      Andreu Bisquerra    <jove@bisquerra.com>
  * Copyright (C) 2019      Josep Lluís Amador  <joseplluis@lliuretic.cat>
- * Copyright (C) 2021    Nicolas ZABOURI    <info@inovea-conseil.com>
+ * Copyright (C) 2021      Nicolas ZABOURI     <info@inovea-conseil.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -48,12 +48,13 @@ if (!isset($action)) {
 }
 include_once DOL_DOCUMENT_ROOT.'/compta/facture/class/facture.class.php';
 
-$langs->loadLangs(array("main", "cashdesk", "companies"));
+$langs->loadLangs(array("main", "bills", "cashdesk", "companies"));
 
 $place = (GETPOST('place', 'aZ09') ? GETPOST('place', 'aZ09') : 0); // $place is id of table for Bar or Restaurant
 
 $facid = GETPOST('facid', 'int');
 
+$action = GETPOST('action', 'aZ09');
 $gift = GETPOST('gift', 'int');
 
 if (empty($user->rights->takepos->run)) {
@@ -65,10 +66,10 @@ if (empty($user->rights->takepos->run)) {
  * View
  */
 
-top_httphead('text/html');
+top_httphead('text/html', 1);
 
 if ($place > 0) {
-	$sql = "SELECT rowid FROM ".MAIN_DB_PREFIX."facture where ref='(PROV-POS".$_SESSION["takeposterminal"]."-".$place.")'";
+	$sql = "SELECT rowid FROM ".MAIN_DB_PREFIX."facture where ref='(PROV-POS".$db->escape($_SESSION["takeposterminal"]."-".$place).")'";
 	$resql = $db->query($sql);
 	$obj = $db->fetch_object($resql);
 	if ($obj) {
@@ -79,16 +80,16 @@ $object = new Facture($db);
 $object->fetch($facid);
 
 // Call to external receipt modules if exist
-$hookmanager->initHooks(array('takeposfrontend'), $facid);
+$parameters = array();
+$hookmanager->initHooks(array('takeposfrontend'));
 $reshook = $hookmanager->executeHooks('TakeposReceipt', $parameters, $object);
 if (!empty($hookmanager->resPrint)) {
 	print $hookmanager->resPrint;
-	exit;
+	return;	// Receipt page can be called by the takepos/send.php page that use ob_start/end so we must use return and not exit to stop page
 }
 
 // IMPORTANT: This file is sended to 'Takepos Printing' application. Keep basic file. No external files as css, js... If you need images use absolute path.
 ?>
-<html>
 <body>
 <style>
 .right {
@@ -110,14 +111,14 @@ if (!empty($hookmanager->resPrint)) {
 <p class="left">
 <?php
 $constFreeText = 'TAKEPOS_HEADER'.$_SESSION['takeposterminal'];
-if (!empty($conf->global->TAKEPOS_HEADER) || !empty($conf->global->{$constFreeText})) {
+if (!empty($conf->global->TAKEPOS_HEADER) || getDolGlobalString($constFreeText)) {
 	$newfreetext = '';
 	$substitutionarray = getCommonSubstitutionArray($langs);
 	if (!empty($conf->global->TAKEPOS_HEADER)) {
 		$newfreetext .= make_substitutions($conf->global->TAKEPOS_HEADER, $substitutionarray);
 	}
-	if (!empty($conf->global->{$constFreeText})) {
-		$newfreetext .= make_substitutions($conf->global->{$constFreeText}, $substitutionarray);
+	if (getDolGlobalString($constFreeText)) {
+		$newfreetext .= make_substitutions(getDolGlobalString($constFreeText), $substitutionarray);
 	}
 	print nl2br($newfreetext);
 }
@@ -134,16 +135,19 @@ if ($object->statut == Facture::STATUS_DRAFT) {
 } else {
 	print $object->ref;
 }
-if ($conf->global->TAKEPOS_SHOW_CUSTOMER) {
-	if ($object->socid != $conf->global->{'CASHDESK_ID_THIRDPARTY'.$_SESSION["takeposterminal"]}) {
+if (!empty($conf->global->TAKEPOS_SHOW_CUSTOMER)) {
+	if ($object->socid != getDolGlobalInt('CASHDESK_ID_THIRDPARTY'.$_SESSION["takeposterminal"])) {
 		$soc = new Societe($db);
 		if ($object->socid > 0) {
 			$soc->fetch($object->socid);
 		} else {
-			$soc->fetch($conf->global->{'CASHDESK_ID_THIRDPARTY'.$_SESSION["takeposterminal"]});
+			$soc->fetch(getDolGlobalInt('CASHDESK_ID_THIRDPARTY'.$_SESSION["takeposterminal"]));
 		}
 		print "<br>".$langs->trans("Customer").': '.$soc->name;
 	}
+}
+if (!empty($conf->global->TAKEPOS_SHOW_DATE_OF_PRINING)) {
+	print "<br>".$langs->trans("DateOfPrinting").': '.dol_print_date(dol_now(), 'dayhour', 'tzuserrel').'<br>';
 }
 ?>
 </p>
@@ -169,33 +173,46 @@ if ($conf->global->TAKEPOS_SHOW_CUSTOMER) {
 	</thead>
 	<tbody>
 	<?php
-	foreach ($object->lines as $line) {
-		?>
-	<tr>
-		<td>
-		<?php if (!empty($line->product_label)) {
-			echo $line->product_label;
-		} else {
-			echo $line->description;
-		} ?>
-		</td>
-		<td class="right"><?php echo $line->qty; ?></td>
-		<td class="right"><?php if ($gift != 1) {
-			echo price(price2num($line->total_ttc / $line->qty, 'MT'), 1);
-						  } ?></td>
-		<?php
-		if (!empty($conf->global->TAKEPOS_SHOW_HT_RECEIPT)) { ?>
-					<td class="right"><?php if ($gift != 1) {
-						echo price($line->total_ht, 1);
-									  } ?></td>
+	if ($action == 'without_details') {
+		$qty = GETPOST('qty', 'int') > 0 ? GETPOST('qty', 'int') : 1;
+		print '<tr>';
+		print '<td>' . GETPOST('label', 'alphanohtml') . '</td>';
+		print '<td class="right">' . $qty . '</td>';
+		print '<td class="right">' . price(price2num($object->total_ttc / $qty, 'MU'), 1) . '</td>';
+		if (!empty($conf->global->TAKEPOS_SHOW_HT_RECEIPT)) {
+			print '<td class="right">' . price($object->total_ht, 1) . '</td>';
+		}
+		print '<td class="right">' . price($object->total_ttc, 1) . '</td>';
+		print '</tr>';
+	} else {
+		foreach ($object->lines as $line) {
+			?>
+		<tr>
+			<td>
+			<?php if (!empty($line->product_label)) {
+				echo $line->product_label;
+			} else {
+				echo $line->description;
+			} ?>
+			</td>
+			<td class="right"><?php echo $line->qty; ?></td>
+			<td class="right"><?php if ($gift != 1) {
+				echo price(price2num($line->total_ttc / $line->qty, 'MT'), 1);
+							  } ?></td>
+			<?php
+			if (!empty($conf->global->TAKEPOS_SHOW_HT_RECEIPT)) { ?>
+						<td class="right"><?php if ($gift != 1) {
+							echo price($line->total_ht, 1);
+										  } ?></td>
+				<?php
+			}
+			?>
+			<td class="right"><?php if ($gift != 1) {
+				echo price($line->total_ttc, 1);
+							  } ?></td>
+		</tr>
 			<?php
 		}
-		?>
-		<td class="right"><?php if ($gift != 1) {
-			echo price($line->total_ttc, 1);
-						  } ?></td>
-	</tr>
-		<?php
 	}
 	?>
 	</tbody>
@@ -218,6 +235,7 @@ if ($conf->global->TAKEPOS_SHOW_CUSTOMER) {
 		}
 		$vat_groups[$line->tva_tx] += $line->total_tva;
 	}
+	// Loop on each VAT group
 	foreach ($vat_groups as $key => $val) {
 		?>
 	<tr>
@@ -236,6 +254,23 @@ if ($conf->global->TAKEPOS_SHOW_CUSTOMER) {
 		echo $langs->trans("TotalVAT").'</th><td class="right">'.price($object->total_tva, 1, '', 1, - 1, - 1, $conf->currency)."\n";
 					  } ?></td>
 </tr>
+<?php }
+
+// Now show local taxes if company uses them
+
+if ($mysoc->useLocalTax(1) || price2num($object->total_localtax1, 'MU')) { ?>
+<tr>
+	<th class="right"><?php if ($gift != 1) {
+		echo ''.$langs->trans("TotalLT1").'</th><td class="right">'.price($object->total_localtax1, 1, '', 1, - 1, - 1, $conf->currency)."\n";
+					  } ?></td>
+</tr>
+<?php } ?>
+<?php if ($mysoc->useLocalTax(2) || price2num($object->total_localtax2, 'MU')) { ?>
+<tr>
+	<th class="right"><?php if ($gift != 1) {
+		echo ''.$langs->trans("TotalLT2").'</th><td class="right">'.price($object->total_localtax2, 1, '', 1, - 1, - 1, $conf->currency)."\n";
+					  } ?></td>
+</tr>
 <?php } ?>
 <tr>
 	<th class="right"><?php if ($gift != 1) {
@@ -243,7 +278,7 @@ if ($conf->global->TAKEPOS_SHOW_CUSTOMER) {
 					  } ?></td>
 </tr>
 <?php
-if (!empty($conf->multicurrency->enabled) && $_SESSION["takeposcustomercurrency"] != "" && $conf->currency != $_SESSION["takeposcustomercurrency"]) {
+if (isModEnabled('multicurrency') && $_SESSION["takeposcustomercurrency"] != "" && $conf->currency != $_SESSION["takeposcustomercurrency"]) {
 	//Only show customer currency if multicurrency module is enabled, if currency selected and if this currency selected is not the same as main currency
 	include_once DOL_DOCUMENT_ROOT.'/multicurrency/class/multicurrency.class.php';
 	$multicurrency = new MultiCurrency($db);
@@ -273,7 +308,7 @@ if ($conf->global->TAKEPOS_PRINT_PAYMENT_METHOD) {
 			echo $langs->transnoentitiesnoconv("PaymentTypeShort".$row->code);
 			echo '</td>';
 			echo '<td class="right">';
-			$amount_payment = (!empty($conf->multicurrency->enabled) && $object->multicurrency_tx != 1) ? $row->multicurrency_amount : $row->amount;
+			$amount_payment = (isModEnabled('multicurrency') && $object->multicurrency_tx != 1) ? $row->multicurrency_amount : $row->amount;
 			if ($row->code == "LIQ") {
 				$amount_payment = $amount_payment + $row->pos_change; // Show amount with excess received if is cash payment
 			}
@@ -316,7 +351,9 @@ if (!empty($conf->global->TAKEPOS_FOOTER) || !empty($conf->global->{$constFreeTe
 ?>
 
 <script type="text/javascript">
-	window.print();
+	<?php
+	if ($facid) print 'window.print();'; //Avoid print when is specimen
+	?>
 </script>
 
 </body>
